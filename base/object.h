@@ -5,39 +5,13 @@
 // See the LICENSE file in the root of this installation for details.
 //
 
-#define WANT_ATOMIC_REFCOUNTS 1
 
-/**
- * @ingroup base_group
- * @class Object
- * @brief Base class for all reference-counted types.
- */
 class Object {
 public:
-#if WANT_ATOMIC_REFCOUNTS
-    std::atomic<int> _refs;
-#else
-	int _refs; // intentionally not std::atomic
-#if DEBUG
-    std::thread::id _owningThreadId;
-#endif
-#endif
 	Object();
 
     virtual ~Object();
     
-    /**
-     Increments the internal reference counter. Must only be called on the owning thread, i.e.
-     the thread that calls the first retain().
-     */
-	void retain();
-    
-    /**
-     Decrements the internal reference counter. If the counter reaches zero the object is moved
-     to a thread-local queue of objects to be free()d.
-     */
-	void release();
-	
 	void* operator new(size_t sz);
     
     /**
@@ -88,132 +62,6 @@ public:
 #define STRINGIFY(x) STRINGIFY_(x)
 #define VA_ARGS(...) , ##__VA_ARGS__
 #define DECLARE_DYNCREATE(X, ...) static Object::Registrar<X VA_ARGS(__VA_ARGS__)> s_classReg##X(STRINGIFY(X))
-
-
-/**
- * @ingroup base_group
- * @class sp<T>
- * @brief A smart pointer class that holds a strong reference to an Object-derived type.
- */
-template<class T>
-class sp {
-public:
-	T* _obj;
-
-    template<class TC>
-    TC* as() const {
-        return static_cast<TC*>(_obj);
-    }
-
-    sp() : _obj(NULL) {
-    }
-    sp(T* obj) : _obj(obj) {
-		if (obj) {
-			obj->retain();
-		}
-    }
-    sp(const sp<T>& sp) : _obj(sp._obj) { // Copy constructor
-		if (_obj) {
-			_obj->retain();
-		}
-    }
-    ~sp() {
-		if (_obj) {
-			_obj->release();
-		}
-    }
-    T& operator* () {
-        return *(T*)_obj;
-    }
-    
-    T* operator-> () const {
-        return (T*)_obj;
-    }
-    T* operator& () const {
-        return (T*)_obj;
-    }
-	void assign(T* obj) {
-		if (obj != _obj) {
-			if (_obj) {
-				_obj->release();
-			}
-			_obj = obj;
-			if (_obj) {
-				_obj->retain();
-			}
-		}
-	}
-    T* operator= (T* obj) {
-		assign(obj);
-        return (T*)_obj;
-    }
-    sp<T>& operator= (const sp<T>& obj) {
-		assign(obj._obj);
-        return *this;
-    }
-    
-    operator T*() const {
-        return (T*)_obj;
-    }
-    bool isSet() {
-        return _obj!=NULL;
-    }
-    
-};
-
-/**
- sp_threadsafe lets other threads safely access an Object owned by a different thread.
- thread, then pass it to another thread where it can safely be used as if it were an sp<T>. When the SharedObject
- is destroyed it dispatches a callback to the owning thread that releases the reference.
- */
-/*
-template <class T>
-class sp_threadsafe {
-public:
-    static_assert(std::is_base_of<Object, T>::value, "type must be Object-derived");
-
-    sp_threadsafe() : _obj(nullptr), _thread(nullptr) {
-    }
-    sp_threadsafe(T* obj) : _obj(obj) {
-        obj->retain();
-        _thread = Thread::current();
-    }
-    sp_threadsafe(sp_threadsafe&& rhs) {
-       _obj = rhs._obj;
-       rhs._obj = nullptr;
-       _thread = Thread::current();
-       assert(_thread == rhs._thread);
-    }
-    sp_threadsafe& operator=(sp_threadsafe&& rhs) {
-        _obj = rhs._obj;
-        rhs._obj = nullptr;
-        _thread = Thread::current();
-        //assert(_thread == rhs._thread);
-        return *this;
-    }
-    ~sp_threadsafe() {
-        if (_obj) {
-            if (_thread == Thread::current()) {
-                _obj->release();
-            } else {
-                Object* obj = _obj;
-                _thread->post([=]() {
-                    obj->release();
-                });
-            }
-        }
-    }
-
-    T& operator* () { return *(T*)_obj; }
-    T* operator->() const { return (T*)_obj; }
-    T* operator& () const { return (T*)_obj; }
-    operator T*() const { return (T*)_obj; }
-    
-    T* _obj;
-    class Thread* _thread;
-
-};
-*/
 
 
 

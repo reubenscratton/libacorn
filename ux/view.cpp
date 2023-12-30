@@ -3,29 +3,38 @@
 //
 
 #include "../libacorn.h"
-
+#include "nsview.h"
 extern float g_backingScaleFactor;
 
+#ifdef __OBJC__
 
-@implementation _NSView
+DECLARE_NSVIEW_TYPE(NSView, View);
 
-- (BOOL)autoresizesSubviews {
-    return NO;
-}
-- (BOOL)isFlipped {
-    return YES;
-}
-- (void)layout {
-    if (_view->_isRoot) {
-        rect r = {0,0,(float)self.frame.size.width * g_backingScaleFactor,(float)self.frame.size.height * g_backingScaleFactor};
-        _view->layout(r);
-    }
-}
-
+@implementation NSView_
+#include "nsview.objc.inc"
 @end
 
+#endif
 
-View* View::create(const val& props) {
+
+template<>
+void js_init<View>(qjs::Context::Module& m) {
+    m.class_<View>("View")
+        .constructor<>()
+        .fun<&View::addView>("addView")
+        .fun<&View::findView>("findView")
+        PROPERTY(View, onmouseenter)
+        PROPERTY(View, onmouseexit)
+        PROPERTY(View, ondragenter)
+        PROPERTY(View, ondragdrop)
+        PROPERTY(View, backgroundColor)
+        PROPERTY(View, margin)
+    ;
+}
+
+
+
+View* View::createImpl(const val& props) {
     string viewClassName = props.get("class").stringVal();
     if (!viewClassName.length()) {
         if (props.hasVal("text")) {
@@ -46,39 +55,32 @@ View* View::create(const val& props) {
     return v;
 }
 
-class DbgView : public View {
-public:
-    virtual void layout(rect& rect) override {
-        View::layout(rect);
-    }
-
-};
-DECLARE_DYNCREATE(DbgView);
 
 View::View() {
 }
+View::~View() {
+}
 void View::createNSView() {
-    _NSView* nsview = [[_NSView alloc] init];
-    nsview->_view = this;
-    _nsview = nsview;
+    _nsview = [[NSView_ alloc] init];
+    ((NSView_*)_nsview)->_view = this;
 }
 void View::onGravityChanged() {
     // no-op
 }
 bool View::applyProp(const string& key, val& v) {
+    if (key == "id") {
+        _id = v.stringVal();
+        return true;
+    }
     if (key == "backgroundColor") {
-        color cv = v.toColor();
-        [_nsview setWantsLayer: YES];
-        _nsview.layer.backgroundColor = [NSColor colorWithRed:cv.r green:cv.g blue:cv.b alpha:cv.a].CGColor;
+        set_backgroundColor(v);
         return true;
     }
     if (key == "views") {
         auto& a = v.arrayRef();
         for (val& vs : a) {
-            View* view = View::create(vs);
-            view->_superview = this;
-            _subviews.push_back(view);
-            [_nsview addSubview:view->_nsview];
+            sp<View> view = View::create<View>(vs);
+            addView(view);
         }
         return true;
     }
@@ -86,12 +88,20 @@ bool View::applyProp(const string& key, val& v) {
         _layout = v.stringVal();
         return true;
     }
+    if (key == "x") {
+        _x = v;
+        return true;
+    }
+    if (key == "y") {
+        _y = v;
+        return true;
+    }
     if (key == "width") {
-        _width = v.floatVal();
+        _width = v;
         return true;
     }
     if (key == "height") {
-        _height = v.floatVal();
+        _height = v;
         return true;
     }
     if (key == "flex-basis") {
@@ -138,18 +148,18 @@ bool View::applyProp(const string& key, val& v) {
     }
     if (key == "padding") {
         if (v.isNumeric()) {
-            _padding.left = _padding.right = _padding.top = _padding.bottom = v.floatVal();
+            _padding[0] = _padding[1] = _padding[2] = _padding[3] = v;
         }
         else if (v.isArray()) {
             auto& a = v.arrayRef();
             if (a.size() == 4) {
-                _padding.left = a[0].floatVal();
-                _padding.top = a[1].floatVal();
-                _padding.right = a[2].floatVal();
-                _padding.bottom = a[3].floatVal();
+                _padding[0] = a[0];
+                _padding[1] = a[1];
+                _padding[2] = a[2];
+                _padding[3] = a[3];
             } else if (a.size() == 2) {
-                _padding.left = _padding.right = a[0].floatVal();
-                _padding.top = _padding.bottom = a[1].floatVal();
+                _padding[0] = _padding[2] = a[0].floatVal();
+                _padding[1] = _padding[3] = a[1].floatVal();
             } else {
                 throw "Invalid padding declaration";
             }
@@ -158,19 +168,50 @@ bool View::applyProp(const string& key, val& v) {
         }
         return true;
     }
+    if (key == "border") {
+        if (!v.isArray()) {
+            throw "Invalid border declaration";
+        }
+        auto& a = v.arrayRef();
+        if (a.size() != 3) {
+            throw "Invalid border declaration";
+        }
+        _borderColor = a[0];
+        _borderWidth = a[1];
+        _borderStyle = a[2];
+        return true;
+    }
     return false;
 }
 
-void View::measure(rect& rect) {
-    if (_superview->_layout != "row") { // if is row element, fill height by default
-        rect.size.height = (_height.isEmpty())?0:_height.floatVal();
+void applyPosition(float& existing, val& pos, float parentLength, float ownLength) {
+    if (!pos.isEmpty()) {
+        if (pos.isString()) {
+            if (pos == "center") {
+                existing += (parentLength - ownLength) / 2;
+            }
+        }
+        if (pos.isNumeric()) {
+            existing += pos.measurementVal().valuePx(parentLength);
+        }
     }
-    if (_superview->_layout != "column") {
-        rect.size.width = (_width.isEmpty())?0:_width.floatVal();
-    }
+
 }
 
-extern float g_backingScaleFactor;
+void View::measure(rect& rect) {
+    auto c = rect.size;
+    //if (_superview->_layout != "row") { // if is row element, fill height by default
+    //if (!_height.isEmpty()) {
+        rect.size.height = _height.measurementVal().valuePx(rect.size.height);
+    //}
+    //if (_superview->_layout != "column") {
+    //if (!_width.isEmpty()) {
+        rect.size.width = _width.measurementVal().valuePx(rect.size.width);
+    //}
+    applyPosition(rect.origin.x, _x, c.width, rect.size.width);
+    applyPosition(rect.origin.y, _y, c.height, rect.size.height);
+}
+
 
 void View::layout(rect& r) {
     if (!_isRoot) {
@@ -187,16 +228,18 @@ void View::layout(rect& r) {
     
     // Inset the given rect by our padding
     rect rect = r;
-    rect.origin.x += _padding.left;
-    rect.origin.y += _padding.top;
-    rect.size.width -= _padding.left + _padding.right;
-    rect.size.height -= _padding.top + _padding.bottom;
+    rect.origin.x = _padding[0].measurementVal().valuePx(r.size.width);
+    rect.origin.y = _padding[1].measurementVal().valuePx(r.size.height);
+    rect.size.width -=  _padding[0].measurementVal().valuePx(r.size.width) +
+                        _padding[2].measurementVal().valuePx(r.size.width);
+    rect.size.height -= _padding[1].measurementVal().valuePx(r.size.height) +
+                        _padding[3].measurementVal().valuePx(r.size.height);
     
     // Flexbox
     bool isRow = (_layout == "row");
     bool isCol = (_layout == "column");
     if (isRow || isCol) {
-        val View::*mainprop = isRow ? &View::_width : &View::_height;
+        val View::*pmainprop = isRow ? &View::_width : &View::_height;
         float size::*main = isRow ? &size::width : &size::height;
         float size::*cross = isRow ? &size::height : &size::width;
         float point::*start = isRow ? &point::x : &point::y;
@@ -208,16 +251,23 @@ void View::layout(rect& r) {
         // length prop (width or height) is used. If this length prop is
         // unspecified then the max-content size is used.
         int i = 0;
-        for (View* subview : _subviews) {
+        for (sp<View>& subview : _subviews) {
             // Calculate the flex basis
             val& vb = subview->_flexBasis;
             if (vb.isEmpty() || vb == "auto") {
-                // Ask subview how big it'd *like* to be, given a fixed
+                // If subview has a set main size we use that, otherwise ask
+                // the subview how big it'd *like* to be, given a fixed
                 // cross-size and infinite main size.
-                struct rect subrect = rect;
-                subrect.size.*main = 2000000000;
-                subview->measure(subrect);
-                mainLengths[i] = subrect.size.*main;
+                val& mainprop = subview.get()->*pmainprop;
+                if (!mainprop.isEmpty()) {
+                    mainLengths[i] = mainprop.measurementVal().valuePx(rect.size.*main);
+                }
+                else {
+                    struct rect subrect = rect;
+                    subrect.size.*main = 2000000000;
+                    subview->measure(subrect);
+                    mainLengths[i] = subrect.size.*main;
+                }
             } else {
                 mainLengths[i] = vb.floatVal();
             }
@@ -228,12 +278,12 @@ void View::layout(rect& r) {
         }
         float diff = rect.size.*main - basis;
         i=0;
-        for (View* subview : _subviews) {
+        for (sp<View>& subview : _subviews) {
             struct rect subrect = rect;
             subrect.size.*main = mainLengths[i++];
-            if (diff >= 0) {
+            if (diff >= 0  && growTotal>0) {
                 subrect.size.*main += (subview->_flexGrow / growTotal) * diff;
-            } else {
+            } else if (diff < 0 && shrinkTotal>0) {
                 subrect.size.*main += (subview->_flexShrink / shrinkTotal) * diff;
             }
             subrect.size.*cross = rect.size.*cross;
@@ -241,5 +291,84 @@ void View::layout(rect& r) {
             rect.origin.*start += subrect.size.*main;
             rect.size.*main -= subrect.size.*main;
         }
+        return;
     }
+    
+    // Default
+    //rect.origin = {0,0};
+    for (sp<View>& subview : _subviews) {
+        subview->measure(rect);
+        subview->layout(rect);
+    }
+    
+}
+
+void View::addView(sp<View> view) {
+    assert(view->_superview == nullptr);
+    view->_superview = this;
+    _subviews.push_back(view);
+    [_nsview addSubview:view->_nsview];
+}
+
+sp<View> View::findView(const string& id) {
+    for (sp<View>& subview : _subviews) {
+        if (id == subview->_id) {
+            return subview;
+        }
+    }
+    for (sp<View>& subview : _subviews) {
+        auto r = subview->findView(id);
+        if (r) {
+            return r;
+        }
+    }
+    return nullptr;
+}
+
+MOUSEFUNC View::get_onmouseenter()  {
+    return _onmouseenter;
+}
+MOUSEFUNC View::set_onmouseenter(const MOUSEFUNC& f) {
+    [(NSView_*)_nsview setWantMouseEnterExit: f!=nil];
+    _onmouseenter = f; return _onmouseenter;
+}
+MOUSEFUNC View::get_onmouseexit()  {
+    return _onmouseexit;
+}
+MOUSEFUNC View::set_onmouseexit(const MOUSEFUNC& f) {
+    [(NSView_*)_nsview setWantMouseEnterExit: f!=nil];
+    _onmouseexit = f; return _onmouseexit;
+}
+
+DRAGFUNC View::get_ondragenter()  {
+    return _ondragenter;
+}
+DRAGFUNC View::set_ondragenter(const DRAGFUNC &f) {
+    [((NSView_*)_nsview) setWantDragDest:f!=nil];
+    _ondragenter = f; return _ondragenter;
+}
+DRAGFUNC View::get_ondragdrop()  {
+    return _ondragdrop;
+}
+DRAGFUNC View::set_ondragdrop(const DRAGFUNC &f) {
+    [((NSView_*)_nsview) setWantDragDest:f!=nil];
+    _ondragdrop = f; return _ondragdrop;
+}
+
+val View::get_backgroundColor() {
+    return _backgroundColor;
+}
+val View::set_backgroundColor(const val& v) {
+    _backgroundColor = v;
+    [_nsview setNeedsDisplay: YES];
+    return _backgroundColor;
+}
+
+val View::get_margin() {
+    return _margin;
+}
+val View::set_margin(const val& v) {
+    _margin = v;
+    [_nsview setNeedsLayout:YES];
+    return _margin;
 }

@@ -27,6 +27,9 @@ public:
     
     /** Returns the measurement value in pixels */
     float value() const;
+    float valuePx(float containerLength) const;
+    float valuePt(float containerLength) const;
+
     float _unitVal;
     enum unit {
         PX, // hardware pixels (backing store pixels in macos terms)
@@ -75,7 +78,7 @@ private:
         bytearray* _bytearray;
         vector<val>* _vec;
         map<string, val>* _map;
-        Object* _obj;
+        sp<Object>* _obj;
         error* _err;
     };
 public:
@@ -113,7 +116,10 @@ public:
     //val(class ISerializeToVal* val);
     val(const vector<val>& val);
     val(const vector<pair<string,val>>& vals);
-    val(Object* obj);
+    template <class T>
+    val(const sp<T>& obj) : type(OBJECT) {
+        _obj = new sp<T>(obj);
+    }
     val(const error& val);
     val& operator=(const val& rhs);
     bool operator<(const val& rhs) const;
@@ -151,9 +157,9 @@ public:
     vector<string> stringArrayVal() const;
     vector<string> stringArrayVal(const string& name) const;
     template <typename T>
-    T* objectVal() const {
+    sp<T> objectVal() const {
         static_assert(std::is_base_of<Object, T>::value, "type must be Object-derived");
-        return (type==OBJECT) ? static_cast<T*>(_obj) : nullptr;
+        return (type==OBJECT && _obj != nullptr) ? _obj->get() : nullptr;
     }
 
     // Accessors (by reference, no coercion)
@@ -167,14 +173,14 @@ public:
     error& errorRef() const;
 
     template <class T>
-    vector<acorn::sp<T>> arrayOf(const string& name) const {
+    vector<sp<T>> arrayOf(const string& name) const {
         static_assert(std::is_base_of<ISerializeToVal, T>::value, "T must implement ISerializeToVal");
-        vector<acorn::sp<T>> vec;
+        vector<sp<T>> vec;
         auto& a = arrayRef(name);
         for (auto& e : a) {
             T* t = new T();
             t->fromVal(e);
-            vec.push_back(t);
+            vec.push_back(std::make_shared(t));
         }
         return vec;
     }
@@ -240,7 +246,7 @@ public:
     void appendVal(const val& v);
     
     // Helpful coercion
-    color toColor();
+    color toColor() const;
     
 
     // Parsing from JSON and config files
@@ -275,6 +281,10 @@ public:
     const char* debugString() const;
 #endif
     
+    //JSValue toQJSValue(JSContext * ctx);
+    friend qjs::js_traits<val>;
+    //friend JSValue qjs::js_traits<val>::wrap(struct JSContext* ctx, const val& v) noexcept;
+    
 private:
     inline void assign(const val& src);
     static val parse(const string& str, uint32_t& o, int flags);
@@ -282,3 +292,4 @@ private:
 
 //template <>
 //class Bitmap* val::getObject<Bitmap>(const string& key) const;
+

@@ -16,6 +16,10 @@ float g_systemFontSize = 16.0f;
  NSWindow_ : wraps NSWindow and makes it it's own delegate as well
  as container of a root View which becomes the NSWindow's contentView.
  */
+
+@interface NSWindow_ : NSWindow <NSWindowDelegate>
+@end
+
 @implementation NSWindow_
 - (id)init {
     self = [self initWithContentRect:NSMakeRect(100,100,400,300)
@@ -34,35 +38,50 @@ float g_systemFontSize = 16.0f;
 }
 - (void)windowDidResize:(NSNotification *)notification {
 }
+- (void)close {
+    [super close];
+    exit(0);
+}
 @end
 
-Window* Window::create(const val& props) {
-    auto w = new Window();
-    w->applyProps(props);
-    return w;
+Window::Window(const string& uiAsset) : Window() {
+    string filepath = uiAsset;
+    resolvePath(filepath);
+    
+    size_t buf_len;
+    const char* buf = (const char*)js_load_file(nullptr, &buf_len, filepath.c_str());
+
+    auto props = val::parse(string(buf,-1), 0);
+    applyProps(props);
+
 }
 
-Window::Window() : ScriptObj() {
-    _rootView = View::create({});
+
+//std::shared_ptr<Window>* g_window;
+
+Window::Window() : JSObj() {
+    _rootView = View::create<View>({});
     _rootView->_isRoot = true;
     _wnd = [NSWindow_ new];
     g_backingScaleFactor = _wnd.backingScaleFactor;
     g_systemFontSize = [NSFont preferredFontForTextStyle:NSFontTextStyleBody options:@{}].pointSize;
     _wnd.contentView = _rootView->_nsview;
+    //g_window = new std::shared_ptr<Window>(this);
 }
-
+Window::~Window() {
+}
 
 bool Window::applyProp(const string& key, val& v) {
     
     if (key == "width") {
         CGSize size = _wnd.contentView.frame.size;
-        size.width = v.intVal() / g_backingScaleFactor; // acorn vals are hw px, convert it to iOS/macOS logical pixels
+        size.width = v.measurementVal().valuePt(size.width);
         [_wnd setContentSize:size];
         return true;
     }
     if (key == "height") {
         CGSize size = _wnd.contentView.frame.size;
-        size.height = v.intVal() / g_backingScaleFactor;
+        size.height = v.measurementVal().valuePt(size.height);
         [_wnd setContentSize:size];
         return true;
     }
@@ -78,3 +97,14 @@ bool Window::applyProp(const string& key, val& v) {
 void Window::show() {
     [_wnd makeKeyAndOrderFront:nil];
 }
+
+sp<View> Window::get_rootView() {
+    return _rootView;
+}
+sp<View> Window::findView(const string& id) {
+    return _rootView->findView(id);
+}
+
+
+
+

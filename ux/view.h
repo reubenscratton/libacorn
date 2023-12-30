@@ -2,16 +2,14 @@
 //  libacorn
 //
 
-
-class ScriptObj : public acorn::Object {
+class JSObj : public acorn::Object {
 public:
-    ScriptObj() : Object() {
-        
+    JSObj() : Object() {
     }
+    
     void applyProps(const val& props) {
-        _props = props;
-        if (_props.type == val::type::MAP) {
-            for (auto it=_props.mapBegin() ; it!=_props.mapEnd() ; it++) {
+        if (props.type == val::type::MAP) {
+            for (auto it=props.mapBegin() ; it!=props.mapEnd() ; it++) {
                 applyProp(it->first, it->second);
             }
         }
@@ -21,17 +19,9 @@ protected:
         log_warn("Ignored applyProp: %s", key.c_str());
         return false;
     }
-    val _props;
+    
 };
 
-// Objc class that extends the target platform class so we can override methods
-#ifdef __OBJC__
-@interface _NSView : NSView {
-@public
-    class View* _view;
-}
-@end
-#endif
 
 /*
  Every view has these properties:
@@ -85,8 +75,6 @@ protected:
  
  */
 
-const float UNSET = -65535.0f;
-
 struct point {
     float x,y;
 };
@@ -100,11 +88,19 @@ struct rect {
     point origin;
     size size;
 };
+typedef std::function<void()> MOUSEFUNC;
+typedef std::function<int(vector<string>)> DRAGFUNC;
+
 
 // C++ class that wraps the Obj-C class and hides as much platform detail as possible
-class View : public ScriptObj {
+class View : public JSObj {
 public:
-    static View* create(const val& props);
+    template <class T>
+    static sp<T> create(const val& props) {
+        T* v = (T*)createImpl(props);
+        return sp<T>(v);
+    }
+    static View* createImpl(const val& props);
 
     virtual void measure(rect& rect);
     virtual void layout(rect& rect);
@@ -121,6 +117,7 @@ protected:
     void* _nsview;
 #endif
     
+public:
     // Props
     val _x;
     val _y;
@@ -133,20 +130,36 @@ protected:
     val _flexBasis;
     float _flexGrow = 0;
     float _flexShrink = 0;
-    insets _padding = {0,0,0,0};
+    val _padding[4]; // = {0,0,0,0};
     string _layout;
     float _gravityH = 0;
     float _gravityV = 0;
+    val _borderColor;
+    val _borderWidth;
+    val _borderStyle;
 
     // Read-only props?
-    //size _intrinsicContentSize = {0, 0};
     size _contentSize = {0, 0};
-    //size _contentSizeMax = {0, 0};
 
 
-    View* _superview;
+    DECLPROP(onmouseenter, MOUSEFUNC);
+    DECLPROP(onmouseexit, MOUSEFUNC);
+    DECLPROP(ondragenter, DRAGFUNC);
+    DECLPROP(ondragdrop, DRAGFUNC);
+    DECLPROP(backgroundColor, val);
+    DECLPROP(margin, val);
+
+
+    string _id;
+    View* _superview = nullptr;
     vector<sp<View>> _subviews;
     View();
+    ~View();
+    
+    // Methods
+    void addView(sp<View> view);
+    sp<View> findView(const string& id);
+    
 private:
     friend class Window;
 };

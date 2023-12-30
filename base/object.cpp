@@ -8,30 +8,9 @@
 #include "../libacorn.h"
 
 
-Object::Object() : _refs(0)
-{
+Object::Object() {
 }
 Object::~Object() {
-}
-void Object::retain() {
-#if DEBUG && !WANT_ATOMIC_REFCOUNTS
-    if (!_refs) {
-        _owningThreadId = std::this_thread::get_id();
-    } else {
-        assert(_owningThreadId == std::this_thread::get_id());
-    }
-#endif
-    _refs++;
-}
-void Object::release() {
-#if DEBUG && !WANT_ATOMIC_REFCOUNTS
-    assert(_owningThreadId == std::this_thread::get_id());
-#endif
-    assert(_refs > 0);
-	if (--_refs == 0) {
-        //Task::addObjectToCurrentThreadDeletePool(this);
-		delete this;
-	}
 }
 void* Object::operator new(size_t sz) {
 	void* p = malloc(sz);

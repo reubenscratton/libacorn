@@ -26,7 +26,10 @@ uint32_t color::toRgbaUint32() {
     uint8_t ia = a * 255;
     return ir | (ig<<8) | (ib<<16) | (ia<<24);
 }
-color val::toColor() {
+color val::toColor() const {
+    if (type == EMPTY) {
+        return color();
+    }
     if (type == UINT32 || type==UINT64 || type==INT32 || type==INT64) {
         return color(_u32);
     }
@@ -203,6 +206,20 @@ float measurement::value() const {
     if (_unit==PC) return _unitVal/100;
     return _unitVal;
 }
+float measurement::valuePx(float containerLength) const {
+    if (_unit==PX) return _unitVal;
+    if (_unit==PT) return _unitVal * g_backingScaleFactor;
+    if (_unit==EM) return _unitVal * g_systemFontSize;
+    if (_unit==PC) return (_unitVal / 100) * containerLength;
+    return _unitVal;
+}
+float measurement::valuePt(float containerLength) const {
+    if (_unit==PX) return _unitVal / g_backingScaleFactor;
+    if (_unit==PT) return _unitVal;
+    if (_unit==EM) return _unitVal * g_systemFontSize;
+    if (_unit==PC) return (_unitVal / 100) * containerLength;
+    return _unitVal;
+}
 
 string measurement::toString() const {
     const char* szUnit;
@@ -267,9 +284,6 @@ val::val(const class bytearray& val) : type(BYTEARRAY), _bytearray(new class byt
         val->toVal(*this);
     }
 }*/
-val::val(Object* obj) : type(OBJECT), _obj(obj) {
-    obj->retain();
-}
 
 val::val(const vector<val>& v) : type(ARRAY) {
     _vec = new vector<val>(v.begin(), v.end());
@@ -296,7 +310,7 @@ val::~val() {
     } else if (type == MAP) {
         delete _map;
     } else if (type == OBJECT) {
-        _obj->release();
+        _obj->reset();
     } else if (type == ERROR) {
         delete _err;
     }
@@ -318,7 +332,7 @@ void val::setType(enum type newType) {
         delete _map;
         _map = NULL;
     } else if (type == OBJECT) {
-        _obj->release();
+        delete _obj;
         _obj = NULL;
     } else if (type == ERROR) {
         delete _err;
@@ -356,7 +370,7 @@ void val::assign(const val& src) {
         case BYTEARRAY: _bytearray = new class bytearray(*src._bytearray); break;
         case ARRAY: _vec = new vector<val>(src._vec->begin(), src._vec->end()); break;
         case MAP: _map = new map<string,val>(*src._map); break;
-        case OBJECT: _obj = src._obj; _obj->retain(); break;
+        case OBJECT: _obj = src._obj; break;
         case ERROR: _err = new error(*src._err); break;
     }
     type = src.type;
@@ -527,12 +541,13 @@ measurement val::measurementVal() const {
         return _measurement;
     }
     if (isNumeric()) {
-        return measurement(floatVal(), measurement::PX);
+        return measurement(floatVal(), measurement::PT);
     }
-    log_warn("measurement() type coerce failed");
+    if (!isEmpty()) {
+        log_warn("measurement() type coerce failed");
+    }
     return measurement(0,measurement::PX);
 }
-
 
 
 string val::stringVal() const {
@@ -749,7 +764,7 @@ uint32_t val::getRamCost() const {
         case FLOAT64: cost += 8; break;
         case STRING: cost += _str->lengthInBytes(); break;
         case BYTEARRAY: cost += _bytearray->size(); break;
-        case OBJECT: cost += _obj->getRamCost(); break;
+        case OBJECT: cost += (*_obj)->getRamCost(); break;
         case ARRAY: {
             if (_vec) {
                 for (auto it=_vec->begin() ; it != _vec->end() ; it++) {
