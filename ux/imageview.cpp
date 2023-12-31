@@ -13,7 +13,7 @@ DECLARE_NSVIEW_TYPE(NSImageView, ImageView);
 #endif
 
 
-void ImageView::measure(rect& rect) {
+size ImageView::measure(const rect& rect) {
     CGSize size = [((NSImageView_*)_nsview) intrinsicContentSize];
     size.width *= g_backingScaleFactor;
     size.height *= g_backingScaleFactor;
@@ -32,8 +32,10 @@ void ImageView::measure(rect& rect) {
         _contentSize.width = rect.size.width;
     }
     
-    rect.size.width = ceilf(_contentSize.width);
-    rect.size.height = ceilf(_contentSize.height);
+    struct size s;
+    s.width = ceilf(_contentSize.width);
+    s.height = ceilf(_contentSize.height);
+    return s;
 };
 
 ImageView::ImageView() : View() {

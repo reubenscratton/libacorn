@@ -29,6 +29,7 @@ void js_init<View>(qjs::Context::Module& m) {
         PROPERTY(View, ondragdrop)
         PROPERTY(View, backgroundColor)
         PROPERTY(View, margin)
+        PROPERTY(View, padding)
     ;
 }
 
@@ -86,6 +87,10 @@ bool View::applyProp(const string& key, val& v) {
     }
     if (key == "layout") {
         _layout = v.stringVal();
+        return true;
+    }
+    if (key == "margin") {
+        set_margin(v);
         return true;
     }
     if (key == "x") {
@@ -147,25 +152,7 @@ bool View::applyProp(const string& key, val& v) {
         return true;
     }
     if (key == "padding") {
-        if (v.isNumeric()) {
-            _padding[0] = _padding[1] = _padding[2] = _padding[3] = v;
-        }
-        else if (v.isArray()) {
-            auto& a = v.arrayRef();
-            if (a.size() == 4) {
-                _padding[0] = a[0];
-                _padding[1] = a[1];
-                _padding[2] = a[2];
-                _padding[3] = a[3];
-            } else if (a.size() == 2) {
-                _padding[0] = _padding[2] = a[0].floatVal();
-                _padding[1] = _padding[3] = a[1].floatVal();
-            } else {
-                throw "Invalid padding declaration";
-            }
-        } else {
-            throw "Invalid padding declaration";
-        }
+        set_padding(v);
         return true;
     }
     if (key == "border") {
@@ -198,22 +185,78 @@ void applyPosition(float& existing, val& pos, float parentLength, float ownLengt
 
 }
 
-void View::measure(rect& rect) {
-    auto c = rect.size;
-    //if (_superview->_layout != "row") { // if is row element, fill height by default
-    //if (!_height.isEmpty()) {
-        rect.size.height = _height.measurementVal().valuePx(rect.size.height);
-    //}
-    //if (_superview->_layout != "column") {
-    //if (!_width.isEmpty()) {
-        rect.size.width = _width.measurementVal().valuePx(rect.size.width);
-    //}
-    applyPosition(rect.origin.x, _x, c.width, rect.size.width);
-    applyPosition(rect.origin.y, _y, c.height, rect.size.height);
+size View::measure(const rect& rect) {
+    // Default implementation only references the _width and _height props
+    // Note that margins are not considered here.
+    // TODO: Padding should be applied here!
+    size s;
+    s.height = _height.measurementVal().valuePx(rect.size.height);
+    s.width = _width.measurementVal().valuePx(rect.size.width);
+    return s;
 }
 
+struct insets View::getActualPadding(const rect& r) {
+    struct insets pad = {0,0,0,0};
+    if (_padding.isEmpty()) {
+    }
+    else if (_padding.isArray()) {
+        auto& a = _padding.arrayRef();
+        if (a.size() == 4) {
+            pad.left = a.at(0).measurementVal().valuePx(r.size.width);
+            pad.top = a.at(1).measurementVal().valuePx(r.size.height);
+            pad.right = a.at(2).measurementVal().valuePx(r.size.width);
+            pad.bottom = a.at(3).measurementVal().valuePx(r.size.height);
+        } else if (a.size()==2) {
+            pad.left =
+            pad.right = a.at(0).measurementVal().valuePx(r.size.width);
+            pad.top =
+            pad.bottom = a.at(1).measurementVal().valuePx(r.size.height);
+        } else {
+            assert(0);
+        }
+    } else if (_padding.isNumeric()) {
+        pad.left =
+        pad.right =
+        pad.top =
+        pad.bottom = _padding.floatVal();
+    } else {
+        assert(false);
+    }
+    return pad;
+
+}
+struct insets View::getActualMargins(const rect& r) {
+    struct insets margins = {0,0,0,0};
+    if (_margin.isEmpty()) {
+    }
+    else if (_margin.isArray()) {
+        auto& a = _margin.arrayRef();
+        if (a.size() == 4) {
+            margins.left = a.at(0).measurementVal().valuePx(r.size.width);
+            margins.top = a.at(1).measurementVal().valuePx(r.size.height);
+            margins.right = a.at(2).measurementVal().valuePx(r.size.width);
+            margins.bottom = a.at(3).measurementVal().valuePx(r.size.height);
+        } else if (a.size()==2) {
+            margins.left =
+            margins.right = a.at(0).measurementVal().valuePx(r.size.width);
+            margins.top =
+            margins.bottom = a.at(1).measurementVal().valuePx(r.size.height);
+        } else {
+            assert(0);
+        }
+    } else if (_margin.isNumeric()) {
+        margins.left =
+        margins.right =
+        margins.top =
+        margins.bottom = _margin.floatVal();
+    } else {
+        assert(false);
+    }
+    return margins;
+}
 
 void View::layout(rect& r) {
+
     if (!_isRoot) {
         // convert rect from hw pixels (px) to logical pixels
         NSRect nsr = NSMakeRect(r.origin.x/g_backingScaleFactor,
@@ -226,15 +269,11 @@ void View::layout(rect& r) {
         return;
     }
     
-    // Inset the given rect by our padding
+    // Apply padding to given rect
     rect rect = r;
-    rect.origin.x = _padding[0].measurementVal().valuePx(r.size.width);
-    rect.origin.y = _padding[1].measurementVal().valuePx(r.size.height);
-    rect.size.width -=  _padding[0].measurementVal().valuePx(r.size.width) +
-                        _padding[2].measurementVal().valuePx(r.size.width);
-    rect.size.height -= _padding[1].measurementVal().valuePx(r.size.height) +
-                        _padding[3].measurementVal().valuePx(r.size.height);
-    
+    rect.origin = {0,0};
+    getActualPadding(r).applyToRect(rect);
+
     // Flexbox
     bool isRow = (_layout == "row");
     bool isCol = (_layout == "column");
@@ -265,11 +304,18 @@ void View::layout(rect& r) {
                 else {
                     struct rect subrect = rect;
                     subrect.size.*main = 2000000000;
-                    subview->measure(subrect);
-                    mainLengths[i] = subrect.size.*main;
+                    size idealSize = subview->measure(subrect);
+                    mainLengths[i] = idealSize.*main; //subrect.size.*main;
                 }
             } else {
                 mainLengths[i] = vb.floatVal();
+            }
+            // Add margins to the main length axis
+            struct insets margins = subview->getActualMargins(rect);
+            if (isRow) {
+                mainLengths[i] += margins.left + margins.right;
+            } else {
+                mainLengths[i] += margins.top + margins.bottom;
             }
             basis += mainLengths[i];
             i++;
@@ -287,6 +333,16 @@ void View::layout(rect& r) {
                 subrect.size.*main += (subview->_flexShrink / shrinkTotal) * diff;
             }
             subrect.size.*cross = rect.size.*cross;
+
+            // The subview sizes were calculated with margins included. Now we unapply
+            // them to get the correct final rect
+            struct insets margins = subview->getActualMargins(rect);
+            margins.applyToRect(subrect);
+
+            // If X/Y props are set, apply them now
+            applyPosition(subrect.origin.x, subview->_x, rect.size.width, subrect.size.width);
+            applyPosition(subrect.origin.y, subview->_y, rect.size.height, subrect.size.height);
+
             subview->layout(subrect);
             rect.origin.*start += subrect.size.*main;
             rect.size.*main -= subrect.size.*main;
@@ -297,8 +353,15 @@ void View::layout(rect& r) {
     // Default
     //rect.origin = {0,0};
     for (sp<View>& subview : _subviews) {
-        subview->measure(rect);
-        subview->layout(rect);
+        struct rect subrect = rect;
+        subrect.size = subview->measure(rect);
+        struct insets margins = subview->getActualMargins(rect);
+        subrect.origin.x += margins.left;
+        subrect.origin.y += margins.top;
+        // do not apply right/bottom margins as measure() result does not include margins
+        applyPosition(subrect.origin.x, subview->_x, rect.size.width, subrect.size.width);
+        applyPosition(subrect.origin.y, subview->_y, rect.size.height, subrect.size.height);
+        subview->layout(subrect);
     }
     
 }
@@ -372,3 +435,13 @@ val View::set_margin(const val& v) {
     [_nsview setNeedsLayout:YES];
     return _margin;
 }
+
+val View::get_padding() {
+    return _padding;
+}
+val View::set_padding(const val& v) {
+    _padding = v;
+    [_nsview setNeedsLayout:YES];
+    return _padding;
+}
+

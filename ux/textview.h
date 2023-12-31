@@ -5,7 +5,7 @@
 
 class TextView : public View {
 public:
-    virtual void measure(rect& r) override;
+    virtual size measure(const rect& r) override;
     virtual void layout(rect& r) override;
     TextView();
     

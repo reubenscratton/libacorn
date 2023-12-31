@@ -81,12 +81,18 @@ struct point {
 struct size {
     float width,height;
 };
-struct insets {
-    float left,top,right,bottom;
-};
 struct rect {
     point origin;
     size size;
+};
+struct insets {
+    float left,top,right,bottom;
+    inline void applyToRect(rect& r) {
+        r.origin.x += left;
+        r.origin.y += top;
+        r.size.width -= left+right;
+        r.size.height -= top+bottom;
+    }
 };
 typedef std::function<void()> MOUSEFUNC;
 typedef std::function<int(vector<string>)> DRAGFUNC;
@@ -102,7 +108,9 @@ public:
     }
     static View* createImpl(const val& props);
 
-    virtual void measure(rect& rect);
+    // Returns the size this view would like to be, given the constraining rect
+    virtual size measure(const rect& rect);
+    
     virtual void layout(rect& rect);
     
     bool _isRoot = false;
@@ -110,6 +118,8 @@ protected:
     virtual bool applyProp(const string& key, val& v) override;
     
     virtual void onGravityChanged();
+    virtual struct insets getActualMargins(const rect& r);
+    virtual struct insets getActualPadding(const rect& r);
 #ifdef __OBJC__
     virtual void createNSView();
     NSView* _nsview;
@@ -130,7 +140,6 @@ public:
     val _flexBasis;
     float _flexGrow = 0;
     float _flexShrink = 0;
-    val _padding[4]; // = {0,0,0,0};
     string _layout;
     float _gravityH = 0;
     float _gravityV = 0;
@@ -148,6 +157,7 @@ public:
     DECLPROP(ondragdrop, DRAGFUNC);
     DECLPROP(backgroundColor, val);
     DECLPROP(margin, val);
+    DECLPROP(padding, val);
 
 
     string _id;

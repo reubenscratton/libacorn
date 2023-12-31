@@ -31,15 +31,23 @@ extern bool resolvePath(string& path);
 class Button : public View {
 public:
 
-    virtual void measure(rect& rect) override {
+    virtual size measure(const rect& r) override {
+        
         CGSize size = [((_NSButton*)_nsview) intrinsicContentSize];
         size.width *= g_backingScaleFactor;
         size.height *= g_backingScaleFactor;
         _contentSize.width = size.width;
         _contentSize.height = size.height;
 
-        rect.size.width = ceilf(_contentSize.width);
-        rect.size.height = ceilf(_contentSize.height);
+        struct size s;
+        s.width = ceilf(_contentSize.width);
+        s.height = ceilf(_contentSize.height);
+        
+        auto pad = getActualPadding(r);
+        s.width += pad.left + pad.right;
+        s.height += pad.top + pad.bottom;
+
+        return s;
     };
     //virtual void layout(float4& rect) override {
         

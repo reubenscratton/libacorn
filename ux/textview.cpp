@@ -15,8 +15,10 @@ DECLARE_NSVIEW_TYPE(NSTextView, TextView);
     self.editable = NO;
     self.selectable = NO;
     self.backgroundColor = nil;
+    self.drawsBackground = NO;
     self.textContainer.maximumNumberOfLines = 1;
     self.textContainer.lineBreakMode = NSLineBreakByTruncatingTail;
+    self.verticallyResizable = NO;
     return self;
 }
 @end
@@ -27,8 +29,7 @@ DECLARE_NSVIEW_TYPE(NSTextView, TextView);
 
 void applyPosition(float& existing, val& pos, float parentLength, float ownLength);
 
-void TextView::measure(rect& r) {
-    auto c = r.size;
+size TextView::measure(const rect& r) {
     
     NSTextView_* ns = ((NSTextView_*)_nsview);
 
@@ -39,11 +40,10 @@ void TextView::measure(rect& r) {
     _contentSize.width = used.size.width * g_backingScaleFactor;
     _contentSize.height = used.size.height * g_backingScaleFactor;
 
-    r.size.width = ceilf(_contentSize.width);
-    r.size.height = ceilf(_contentSize.height);
-    
-    applyPosition(r.origin.x, _x, c.width, r.size.width);
-    applyPosition(r.origin.y, _y, c.height, r.size.height);
+    size s;
+    s.width = ceilf(_contentSize.width);
+    s.height = ceilf(_contentSize.height);
+    return s;
 };
 
 void TextView::layout(rect& r) {

@@ -6,7 +6,7 @@
 
 class ImageView : public View {
 public:
-    virtual void measure(rect& rect) override;
+    virtual size measure(const rect& rect) override;
     ImageView();
     
 protected:
