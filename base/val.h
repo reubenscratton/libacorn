@@ -120,6 +120,10 @@ public:
     val(const sp<T>& obj) : type(OBJECT) {
         _obj = new sp<T>(obj);
     }
+    template <class T>
+    val(T* obj) : type(OBJECT) {
+        _obj = new sp<T>(obj);
+    }
     val(const error& val);
     val& operator=(const val& rhs);
     bool operator<(const val& rhs) const;
@@ -159,7 +163,10 @@ public:
     template <typename T>
     sp<T> objectVal() const {
         static_assert(std::is_base_of<Object, T>::value, "type must be Object-derived");
-        return (type==OBJECT && _obj != nullptr) ? _obj->get() : nullptr;
+        if (type == OBJECT && _obj != nullptr) {
+            return std::dynamic_pointer_cast<T>(*_obj);
+        }
+        return nullptr;
     }
 
     // Accessors (by reference, no coercion)

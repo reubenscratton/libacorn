@@ -1789,6 +1789,8 @@ void JS_SetSharedArrayBufferFunctions(JSRuntime *rt,
     rt->sab_funcs = *sf;
 }
 
+extern void hook_JS_EnqueueJob(JSContext *ctx);
+
 /* return 0 if OK, < 0 if exception */
 int JS_EnqueueJob(JSContext *ctx, JSJobFunc *job_func,
                   int argc, JSValueConst *argv)
@@ -1807,6 +1809,7 @@ int JS_EnqueueJob(JSContext *ctx, JSJobFunc *job_func,
         e->argv[i] = JS_DupValue(ctx, argv[i]);
     }
     list_add_tail(&e->link, &rt->job_list);
+    hook_JS_EnqueueJob(ctx);
     return 0;
 }
 

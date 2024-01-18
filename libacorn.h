@@ -115,6 +115,7 @@ void main();
 }
 
 #include "js/quickjspp.hpp"
+#include "js/quickjs-libc.h"
 
 template <typename T>
 void js_init(qjs::Context::Module&);
@@ -128,7 +129,6 @@ extern NSString* str2ns(const string& s);
 #endif
 
 }
-//#include "js/quickjs.h"
 
 /** Conversion traits for acorn::string */
 template <>
@@ -181,7 +181,29 @@ struct qjs::js_traits<acorn::val>
                     vector<acorn::val> vec = js_traits<vector<acorn::val>>::unwrap(ctx, v);
                     return vec;
                 }
-                // fall thru
+                auto clsid = JS_GetClassID(v);
+                // Anonymous JS object: promote to map
+                if (clsid == 1 /*JS_CLASS_OBJECT*/) {
+                    acorn::val rv;
+                    JSPropertyEnum* props = nullptr;
+                    uint32_t numProps = 0;
+                    if (0 == JS_GetOwnPropertyNames(ctx, &props, &numProps, v, JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_PRIVATE_MASK)) {
+                        for (int i=0 ; i<numProps ; i++) {
+                            const char* fieldName = JS_AtomToCString(ctx, props[i].atom);
+                            JSValue fieldVal = JS_GetProperty(ctx, v, props[i].atom);
+                            rv.set(acorn::string(fieldName,-1), unwrap(ctx, fieldVal));
+                        }
+                    } else {
+                        assert(0);
+                    }
+                    return rv;
+                }
+                // Should be a known C++ class.
+                shared_ptr<acorn::Object>* ptr = (shared_ptr<acorn::Object>*)JS_GetOpaque(v, clsid);
+                return acorn::val(*ptr);
+            }
+            case JS_TAG_UNDEFINED: {
+                return acorn::val();
             }
             default:
                 assert(false);
@@ -258,6 +280,7 @@ using namespace acorn;
 
 extern float g_backingScaleFactor;
 
+#include "lib/fetch.h"
 #include "ux/view.h"
 #include "ux/window.h"
 #include "ux/textview.h"

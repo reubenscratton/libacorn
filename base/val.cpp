@@ -676,7 +676,7 @@ map<string, val>& val::compoundRef(const string& name) const {
 }
 
 bytearray& val::bytearrayRef() const {
-    assert (type==BYTEARRAY);
+    assert (type==BYTEARRAY); // todo: autoconvert single-value types like string etc
     return *_bytearray;
 }
 

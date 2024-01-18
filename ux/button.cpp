@@ -10,22 +10,10 @@
 }
 @end
 @implementation _NSButton
-- (BOOL)autoresizesSubviews {
-    return NO;
-}
-- (BOOL)isFlipped {
+/*- (BOOL)isFlipped {
     return YES;
-}
-- (void)layout {
-    if (_view->_isRoot) {
-        rect r = {0,0,(float)self.frame.size.width,(float)self.frame.size.height};
-        _view->layout(r);
-    }
-}
+}*/
 @end
-
-extern float g_backingScaleFactor;
-extern bool resolvePath(string& path);
 
 
 class Button : public View {
@@ -60,14 +48,16 @@ protected:
 
     void createNSView() override {
         _NSButton* nsview = [[_NSButton alloc] init];
+        [nsview setBezelStyle:NSBezelStyleRounded];
+        [nsview setButtonType:NSButtonTypeMomentaryPushIn];
+        [nsview setKeyEquivalent:@"\r"];
         nsview->_view = this;
         _nsview = nsview;
     }
 
     virtual bool applyProp(const string& key, val& v) override {
         if (key == "text") {
-            string text = v.stringVal();
-            [((_NSButton*)_nsview) setTitle:str2ns(text)];
+            set_text(v.stringVal());
             return true;
         }
         return View::applyProp(key, v);

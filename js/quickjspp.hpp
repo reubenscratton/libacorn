@@ -567,9 +567,7 @@ struct unwrap_arg_impl {
     static auto unwrap(JSContext * ctx, int argc, JSValueConst * argv)
     {
         if (size_t(argc) <= I) {
-            JS_ThrowTypeError(ctx, "Expected at least %lu arguments but received %d",
-                              (unsigned long)NArgs, argc);
-            throw exception{ctx};
+            return js_traits<std::decay_t<T>>::unwrap(ctx, JS_UNDEFINED);
         }
         return js_traits<std::decay_t<T>>::unwrap(ctx, argv[I]);
     }
