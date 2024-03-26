@@ -17,11 +17,13 @@ float g_systemFontSize = 16.0f;
  as container of a root View which becomes the NSWindow's contentView.
  */
 
-@interface NSWindow_ : NSWindow <NSWindowDelegate>
+@interface NSWindow_ : NSWindow <NSWindowDelegate> {
+    Window* _cwindow;
+}
 @end
 
 @implementation NSWindow_
-- (id)init {
+- (id)initWithCWindow:(Window*)cwindow {
     self = [self initWithContentRect:NSMakeRect(100,100,400,300)
                                        styleMask: NSWindowStyleMaskTitled |
                                                 NSWindowStyleMaskClosable |
@@ -29,6 +31,7 @@ float g_systemFontSize = 16.0f;
                                                NSWindowStyleMaskResizable
                                          backing:NSBackingStoreBuffered
                                            defer:NO];
+    self->_cwindow = cwindow;
     self.delegate = self;
     return self;
 }
@@ -40,6 +43,10 @@ float g_systemFontSize = 16.0f;
 }
 - (void)close {
     [super close];
+    if (_cwindow->_onclose) {
+        _cwindow->_onclose();
+    }
+
     exit(0);
 }
 @end
@@ -57,16 +64,14 @@ Window::Window(const string& uiAsset) : Window() {
 }
 
 
-//std::shared_ptr<Window>* g_window;
 
 Window::Window() : JSObj() {
     _rootView = View::create<View>({});
     _rootView->_isRoot = true;
-    _wnd = [NSWindow_ new];
+    _wnd = [[NSWindow_ alloc] initWithCWindow:this];
     g_backingScaleFactor = _wnd.backingScaleFactor;
     g_systemFontSize = [NSFont preferredFontForTextStyle:NSFontTextStyleBody options:@{}].pointSize;
     _wnd.contentView = _rootView->_nsview;
-    //g_window = new std::shared_ptr<Window>(this);
 }
 Window::~Window() {
 }
@@ -96,6 +101,13 @@ bool Window::applyProp(const string& key, val& v) {
 
 void Window::show() {
     [_wnd makeKeyAndOrderFront:nil];
+}
+
+CLOSEFUNC Window::get_onclose()  {
+    return _onclose;
+}
+CLOSEFUNC Window::set_onclose(const CLOSEFUNC& f) {
+    _onclose = f; return _onclose;
 }
 
 sp<View> Window::get_rootView() {

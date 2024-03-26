@@ -280,7 +280,7 @@ using namespace acorn;
 
 extern float g_backingScaleFactor;
 
-#include "lib/fetch.h"
+#include "lib/http.h"
 #include "ux/view.h"
 #include "ux/window.h"
 #include "ux/textview.h"

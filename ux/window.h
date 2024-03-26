@@ -2,6 +2,7 @@
 //  acorn
 //
 
+typedef std::function<void()> CLOSEFUNC;
 
 class Window : public JSObj {
 public:
@@ -10,6 +11,7 @@ public:
     ~Window();
     
     DECLPROP_SP_RO(rootView, View);
+    DECLPROP(onclose, CLOSEFUNC);
 
     
     void show();
@@ -33,6 +35,7 @@ inline void js_init<Window>(qjs::Context::Module& m) {
     .constructor<string>()
     .fun<&Window::show>("show")
     .fun<&Window::findView>("findView")
+    PROPERTY(Window, onclose)
     .property<&Window::get_rootView>("rootView")
     ;
 }
