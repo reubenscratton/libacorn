@@ -120,6 +120,7 @@ JSValue js_httpreq(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
             JS_FreeValue(ctx, this_val2);
             JS_FreeValue(ctx, resolve);
             JS_FreeValue(ctx, reject);
+            JS_FreeValue(ctx, resval);
         });
     }];
     [task resume];
