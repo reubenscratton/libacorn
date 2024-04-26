@@ -94,6 +94,7 @@ struct insets {
         r.size.height -= top+bottom;
     }
 };
+typedef std::function<void(const val& data)> EVENTFUNC;
 typedef std::function<void()> MOUSEFUNC;
 typedef std::function<int(vector<string>)> DRAGFUNC;
 
@@ -151,13 +152,13 @@ public:
     size _contentSize = {0, 0};
 
 
-    DECLPROP(onmouseenter, MOUSEFUNC);
-    DECLPROP(onmouseexit, MOUSEFUNC);
-    DECLPROP(ondragenter, DRAGFUNC);
-    DECLPROP(ondragdrop, DRAGFUNC);
-    DECLPROP(backgroundColor, val);
-    DECLPROP(margin, val);
-    DECLPROP(padding, val);
+    DECLPROPJ(onmouseenter, MOUSEFUNC);
+    DECLPROPJ(onmouseexit, MOUSEFUNC);
+    DECLPROPJ(ondragenter, DRAGFUNC);
+    DECLPROPJ(ondragdrop, DRAGFUNC);
+    DECLPROPJ(backgroundColor, val);
+    DECLPROPJ(margin, val);
+    DECLPROPJ(padding, val);
 
 
     string _id;

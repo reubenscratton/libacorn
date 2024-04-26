@@ -56,10 +56,16 @@ View* View::createImpl(const val& props) {
     return v;
 }
 
+static int s_viewCount = 0;
 
 View::View() {
+    s_viewCount++;
+    //printf("View(). Count: %d!\n", s_viewCount);
+
 }
 View::~View() {
+    s_viewCount--;
+    //printf("~View(). Count: %d!\n", s_viewCount);
 }
 void View::createNSView() {
     _nsview = [[NSView_ alloc] init];
@@ -388,38 +394,21 @@ sp<View> View::findView(const string& id) {
     return nullptr;
 }
 
-MOUSEFUNC View::get_onmouseenter()  {
-    return _onmouseenter;
-}
 MOUSEFUNC View::set_onmouseenter(const MOUSEFUNC& f) {
     [(NSView_*)_nsview setWantMouseEnterExit: f!=nil];
     _onmouseenter = f; return _onmouseenter;
-}
-MOUSEFUNC View::get_onmouseexit()  {
-    return _onmouseexit;
 }
 MOUSEFUNC View::set_onmouseexit(const MOUSEFUNC& f) {
     [(NSView_*)_nsview setWantMouseEnterExit: f!=nil];
     _onmouseexit = f; return _onmouseexit;
 }
-
-DRAGFUNC View::get_ondragenter()  {
-    return _ondragenter;
-}
 DRAGFUNC View::set_ondragenter(const DRAGFUNC &f) {
     [((NSView_*)_nsview) setWantDragDest:f!=nil];
     _ondragenter = f; return _ondragenter;
 }
-DRAGFUNC View::get_ondragdrop()  {
-    return _ondragdrop;
-}
 DRAGFUNC View::set_ondragdrop(const DRAGFUNC &f) {
     [((NSView_*)_nsview) setWantDragDest:f!=nil];
     _ondragdrop = f; return _ondragdrop;
-}
-
-val View::get_backgroundColor() {
-    return _backgroundColor;
 }
 val View::set_backgroundColor(const val& v) {
     _backgroundColor = v;
@@ -427,18 +416,12 @@ val View::set_backgroundColor(const val& v) {
     return _backgroundColor;
 }
 
-val View::get_margin() {
-    return _margin;
-}
 val View::set_margin(const val& v) {
     _margin = v;
     [_nsview setNeedsLayout:YES];
     return _margin;
 }
 
-val View::get_padding() {
-    return _padding;
-}
 val View::set_padding(const val& v) {
     _padding = v;
     [_nsview setNeedsLayout:YES];

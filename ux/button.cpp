@@ -6,13 +6,8 @@
 
 @interface _NSButton : NSButton {
 @public
-    View* _view;
+    class Button* _view;
 }
-@end
-@implementation _NSButton
-/*- (BOOL)isFlipped {
-    return YES;
-}*/
 @end
 
 
@@ -43,7 +38,7 @@ public:
     Button() : View() {
         createNSView();
     }
-protected:
+//protected:
     
 
     void createNSView() override {
@@ -54,6 +49,8 @@ protected:
         nsview->_view = this;
         _nsview = nsview;
     }
+
+    DECLPROPI(onclick, EVENTFUNC);
 
     virtual bool applyProp(const string& key, val& v) override {
         if (key == "text") {
@@ -70,10 +67,25 @@ protected:
     void set_text(const string& t) {
         [((_NSButton*)_nsview) setTitle:str2ns(t)];
     }
-    
+
     friend void js_init<Button>(qjs::Context::Module&);
 
 };
+
+@implementation _NSButton
+- (id)init {
+    self = [super init];
+    [self setTarget:self];
+    [self setAction:@selector(onclick)];
+    return self;
+}
+- (void)onclick {
+    _view->_onclick(val());
+}
+/*- (BOOL)isFlipped {
+    return YES;
+}*/
+@end
 
 template <>
 void js_init<Button>(qjs::Context::Module& m) {
@@ -81,6 +93,8 @@ void js_init<Button>(qjs::Context::Module& m) {
             .base<View>()
             .constructor<>()
             PROPERTY(Button, text)
+            PROPERTY(Button, onclick)
+
     ;
 
 }

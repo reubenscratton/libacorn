@@ -271,9 +271,21 @@ struct qjs::js_traits<acorn::val>
     type _##name; \
     type get_##name(); \
     type set_##name(const type& v);
+
+#define DECLPROPJ(name, type) \
+    type _##name; \
+    inline type get_##name() { return _##name; } \
+    type set_##name(const type& v);
+
+#define DECLPROPI(name, type) \
+    type _##name; \
+    inline type get_##name() { return _##name; } \
+    inline type set_##name(const type& v) { _##name = v; return _##name; }
+
 #define DECLPROP_SP_RO(name, type) \
     std::shared_ptr<type> _##name; \
     std::shared_ptr<type> get_##name();
+
 #define PROPERTY(C, x) .property<&C::get_##x, &C::set_##x>(#x)
 
 using namespace acorn;

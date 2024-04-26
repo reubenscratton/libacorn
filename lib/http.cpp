@@ -130,7 +130,7 @@ JSValue js_httpreq(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 void js_init_fetch(qjs::Context* c, qjs::Context::Module& m) {
     
     m.add("httpreq", JS_NewCFunction(c->ctx, js_httpreq, "httpreq", 4));
-
+    
 }
 
 
